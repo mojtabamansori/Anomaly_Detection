@@ -9,11 +9,9 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 from pyswarm import pso
 from sklearn import metrics
 
+# done 'MoteStrain', 'ItalyPowerDemand','Strawberry','Herring','GunPointAgeSpan',
 
-
-datasets = ['GunPointAgeSpan', 'ItalyPowerDemand',
-            'MoteStrain', 'ProximalPhalanxOutlineCorrect',
-            'Strawberry', 'Herring',
+datasets = ['ProximalPhalanxOutlineCorrect',
             'ToeSegmentation1', 'ToeSegmentation2',]
 for i in datasets:
     data_train = pd.read_csv(f"E:/2/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
@@ -25,7 +23,7 @@ for i in datasets:
     y_test = data_test.iloc[:, 0].values
     temp = len(np.unique(y_test))
 
-    print(f'dataset "" {i} "" is running plz wait, number of class is {temp}')
+    print(f'dataset "" {i} "" is running plz wait, number of class is {temp}.')
     X_combined = np.vstack((X_train, X_test))
     y_combined = np.concatenate((y_train, y_test))
     X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
@@ -49,7 +47,6 @@ for i in datasets:
     precision = precision_score(y_test, y_pred_optimized)
     recall = recall_score(y_test, y_pred_optimized)
     f1 = f1_score(y_test, y_pred_optimized)
-    print(y_pred_optimized)
     for ii in range(len(y_test)):
         if y_test[ii]==1:
             y_test[ii] = 0
@@ -60,15 +57,21 @@ for i in datasets:
             y_pred_optimized[ii] = 0
         if y_pred_optimized[ii]==2:
             y_pred_optimized[ii] = 1
-
-    fpr, tpr, _ = metrics.roc_curve(y_test, y_pred_optimized)
+    y_p = optimized_svm.predict_proba(X_test)
+    fpr, tpr, _ = metrics.roc_curve(y_test, y_p[:,1])
 
     # Create ROC curve plot
-    plt.plot(fpr, tpr)
-    plt.ylabel('True Positive Rate')
+    plt.figure(f'{i}')
+    plt.plot(fpr, tpr, color='b', label='ROC Curve')
+    plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # Diagonal line (random classifier)
+    plt.xlim([-0.005, 1.005])
+    plt.ylim([-0.005, 1.005])
     plt.xlabel('False Positive Rate')
-    plt.title('ROC Curve')
-    plt.show()
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc='lower right')
+    plt.grid(True)
+    plt.savefig(f'plot/{i}_roc_curve.jpg', format='jpg', dpi=300)
 
     results_df = pd.DataFrame({
         'Metric': ['auc', 'Precision', 'Recall', 'F1 Score','best_c','best_gamma'],
@@ -77,5 +80,5 @@ for i in datasets:
     results_df.to_csv(f'result/{i}_svm_metrics_results.csv', index=False)
 
     print("Metrics saved to 'svm_metrics_results.csv'")
-    print(f'Final AUC using optimized SVM: {final_auc:.4f}')
+    print(f'Final AUC using optimized SVM: {final_auc:.4f} \n\n')
 
