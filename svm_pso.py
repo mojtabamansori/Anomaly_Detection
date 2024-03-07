@@ -8,23 +8,22 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score
 from pyswarm import pso
 
-# more 2 class ==> datasets = 'Beef', 'DiatomSizeReduction', 'DistalPhalanxOutlineAgeGroup',
-# done ==> datasets = 'Beef', 'DiatomSizeReduction', 'DistalPhalanxOutlineAgeGroup',
 
-datasets = [
-             'FordB',
-            'Herring', 'InlineSkate',
-            'ItalyPowerDemand', 'MoteStrain',
-            'ProximalPhalanxOutlineCorrect', 'ToeSegmentation2']
+
+datasets = ['GunPointAgeSpan', 'ItalyPowerDemand',
+            'MoteStrain', 'ProximalPhalanxOutlineCorrect',
+            'Strawberry', 'Herring',
+            'ToeSegmentation1', 'ToeSegmentation2',]
 for i in datasets:
-    data_train = pd.read_csv(f"{i}/{i}_TRAIN.tsv", sep='\t')
-    data_test = pd.read_csv(f"{i}/{i}_TEST.tsv", sep='\t')
+    data_train = pd.read_csv(f"E:/2/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
+    data_test = pd.read_csv(f"E:/2/UCRArchive_2018/{i}/{i}_TEST.tsv", sep='\t')
 
     X_train = data_train.iloc[:, 1:].values
     y_train = data_train.iloc[:, 0].values
     X_test = data_test.iloc[:, 1:].values
     y_test = data_test.iloc[:, 0].values
-    print(i,np.unique(y_test))
+    temp = len(np.unique(y_test))
+    print(f'dataset {i} is running plz wait, number of class is {temp}')
     X_combined = np.vstack((X_train, X_test))
     y_combined = np.concatenate((y_train, y_test))
     X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
@@ -50,10 +49,10 @@ for i in datasets:
     f1 = f1_score(y_test, y_pred_optimized)
 
     results_df = pd.DataFrame({
-        'Metric': ['auc', 'Precision', 'Recall', 'F1 Score'],
-        'Value': [final_auc, precision, recall, f1]
+        'Metric': ['auc', 'Precision', 'Recall', 'F1 Score','best_c','best_gamma'],
+        'Value': [final_auc, precision, recall, f1, best_params[0], best_params[1]]
     })
-    results_df.to_csv(f'{i}_svm_metrics_results.csv', index=False)
+    results_df.to_csv(f'result/{i}_svm_metrics_results.csv', index=False)
 
     print("Metrics saved to 'svm_metrics_results.csv'")
     print(f'Final AUC using optimized SVM: {final_auc:.4f}')

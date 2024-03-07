@@ -1,0 +1,7 @@
+Metric,Value
+auc,0.9478260869565218
+Precision,0.8723404255319149
+Recall,1.0
+F1 Score,0.9318181818181819
+best_c,55.0
+best_gamma,0.01
