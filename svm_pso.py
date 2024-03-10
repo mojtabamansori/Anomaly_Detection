@@ -14,8 +14,8 @@ from sklearn import metrics
 datasets = ['ProximalPhalanxOutlineCorrect',
             'ToeSegmentation1', 'ToeSegmentation2',]
 for i in datasets:
-    data_train = pd.read_csv(f"E:/2/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
-    data_test = pd.read_csv(f"E:/2/UCRArchive_2018/{i}/{i}_TEST.tsv", sep='\t')
+    data_train = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
+    data_test = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TEST.tsv", sep='\t')
 
     X_train = data_train.iloc[:, 1:].values
     y_train = data_train.iloc[:, 0].values
@@ -27,7 +27,7 @@ for i in datasets:
     X_combined = np.vstack((X_train, X_test))
     y_combined = np.concatenate((y_train, y_test))
     X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
-    X_train, X_test1, y_train, y_test1 = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
+    X_train, X_test1, y_train, y_test1 = train_test_split(X_train, y_train, test_size=0.20, random_state=12)
 
     def objective_function(params):
         C, gamma = params
