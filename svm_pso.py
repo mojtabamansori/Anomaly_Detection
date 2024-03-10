@@ -27,13 +27,14 @@ for i in datasets:
     X_combined = np.vstack((X_train, X_test))
     y_combined = np.concatenate((y_train, y_test))
     X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
+    X_train, X_test1, y_train, y_test1 = train_test_split(X_combined, y_combined, test_size=0.20, random_state=12)
 
     def objective_function(params):
         C, gamma = params
         svm_classifier = SVC(kernel='rbf', C=C, gamma=gamma, class_weight='balanced')
         svm_classifier.fit(X_train, y_train)
-        y_pred_svm = svm_classifier.predict(X_test)
-        return -roc_auc_score(y_test, y_pred_svm)
+        y_pred_svm1 = svm_classifier.predict(X_test1)
+        return -roc_auc_score(y_test1, y_pred_svm1)
 
     lb = [1, 0.0001]
     ub = [55, 0.01]
