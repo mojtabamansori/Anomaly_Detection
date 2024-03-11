@@ -1,87 +1,142 @@
+import time
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
+from pyswarm import pso
 
 datasets = ['Herring']
 input_size = 512
-hidden_size = 500
-num_epochs = 100
-batch_size = 5
-learning_rate = 0.001
-for num_epochs in range(1,50,10):
-    for hidden_size in range(480,500,9):
-        for i in datasets:
-            data_train = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
-            data_test = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TEST.tsv", sep='\t')
+num_epochs = 1
 
-            X_train = data_train.iloc[:, 1:].values
-            y_train = data_train.iloc[:, 0].values
-            X_test = data_test.iloc[:, 1:].values
-            y_test = data_test.iloc[:, 0].values
-            temp = len(np.unique(y_test))
+# Define the hyperparameter search space
+lower_bounds = [0.0001, 2, 1, 511, 255]  # Learning rate, batch size, num_epochs, hidden_size1, hidden_size2
+upper_bounds = [0.001, 12, 2, 512, 256]
 
-            X_combined = np.vstack((X_train, X_test))
-            y_combined = np.concatenate((y_train, y_test))
-            num_classes = len(np.unique(y_combined))  # Update the number of classes dynamically
+# Number of particles in the population
+num_particles = 10
 
-            X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.20, random_state=42)
-            X_train, X_test1, y_train, y_test1 = train_test_split(X_train, y_train, test_size=0.20, random_state=42)
+# Number of dimensions (hyperparameters)
+num_dimensions = len(lower_bounds)
 
-            # Check Device configuration
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# Store AUC values for each run
+auc_values = []
 
-            # Fully connected neural network
-            class NeuralNet(nn.Module):
-                def __init__(self, input_size, hidden_size, num_classes):
-                    super(NeuralNet, self).__init__()
-                    self.fc1 = nn.Linear(input_size, hidden_size)
-                    self.relu = nn.ReLU()
-                    self.fc2 = nn.Linear(hidden_size, num_classes)
+# Perform 10 runs
 
-                def forward(self, x):
-                    out = self.fc1(x)
-                    out = self.relu(out)
-                    out = self.fc2(out)
-                    return out  # Return raw logits without softmax
+# Split the data into training, validation, and test sets
+for i in datasets:
+    data_train = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TRAIN.tsv", sep='\t')
+    data_test = pd.read_csv(f"E:/python/UCRArchive_2018/{i}/{i}_TEST.tsv", sep='\t')
 
-            model = NeuralNet(input_size, hidden_size, num_classes).to(device)
+    X_train, X_temp, y_train, y_temp = train_test_split(data_train.iloc[:, 1:].values, data_train.iloc[:, 0].values, test_size=0.2, random_state=42)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.3, random_state=42)
 
-            # Loss and optimizer
-            criterion = nn.CrossEntropyLoss()
-            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            # Convert y_train to integer type
-            y_train = y_train.astype(int)
-            for iy in range(len(y_train)):
-                if y_train[iy]==1:
-                    y_train[iy] =0
-                if y_train[iy] == 2:
-                    y_train[iy] = 1
-            for epoch in range(num_epochs):
-                for i2 in range(0, len(X_train) - 1, batch_size):
-                    x = torch.from_numpy(X_train[i2:i2 + 5, :]).to(device).float()
-                    y = torch.from_numpy(y_train[i2:i2 + 5]).to(device).long()  # Convert to torch.LongTensor
-                    outputs = model(x)
-                    loss = criterion(outputs, y)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+    # Define the neural network model
+    class NeuralNet(nn.Module):
+        def __init__(self, input_size, hidden_size1, hidden_size2):
+            super(NeuralNet, self).__init__()
+            self.fc1 = nn.Linear(input_size, hidden_size1)
+            self.relu1 = nn.ReLU()
+            self.fc2 = nn.Linear(hidden_size1, hidden_size2)
+            self.relu2 = nn.ReLU()
+            self.fc3 = nn.Linear(hidden_size2, 1)
+            self.sigmoid = nn.Sigmoid()
 
-            with torch.no_grad():
-                correct = 0
-                total = 0
-                for i2 in range(0, len(X_test) - 1, batch_size):
-                    x = torch.from_numpy(X_test[i2:i2 + 5, :]).to(device).float()
-                    y = torch.from_numpy(y_test[i2:i2 + 5]).to(device).long()  # Convert to torch.LongTensor
-                    outputs = model(x)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += y.size(0)
-                    correct += (predicted == y).sum().item()
-                print(f'epoch={num_epochs}-hidensize={hidden_size}')
-                print('Accuracy of the network on the test images: {} %'.format(100 * correct / total))
+        def forward(self, x):
+            out = self.fc1(x)
+            out = self.relu1(out)
+            out = self.fc2(out)
+            out = self.relu2(out)
+            out = self.fc3(out)
+            out = self.sigmoid(out)
+            return out
 
-            # Save the model checkpoint
-            torch.save(model.state_dict(), 'model.ckpt')
+    def objective(params):
+        # Unpack the hyperparameters
+        learning_rate, batch_size, num_epochs, hidden_size1, hidden_size2 = params
+
+        # Modify y_train to be in the range [0, 1]
+        y_train_modified = (y_train > 1).astype(float)
+
+        model = NeuralNet(input_size, int(hidden_size1), int(hidden_size2)).to(device)
+
+        # Define loss and optimizer
+        criterion = nn.BCEWithLogitsLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+        # Train the model
+        for epoch in range(int(num_epochs)):
+            total_loss = 0.0
+            for i2 in range(0, len(X_train) - 1, int(batch_size)):
+                x = torch.from_numpy(X_train[i2:i2 + int(batch_size), :]).to(device).float()
+                y = torch.from_numpy(y_train_modified[i2:i2 + int(batch_size)]).to(device).float()
+
+                outputs = model(x)
+                loss = criterion(outputs, y.view(-1, 1))
+                total_loss += loss.item()
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            average_loss = total_loss / (len(X_train) / int(batch_size))
+
+        with torch.no_grad():
+            y_scores = []
+            y_true = []
+
+            for i2 in range(0, len(X_val) - 1, int(batch_size)):
+                x = torch.from_numpy(X_val[i2:i2 + int(batch_size), :]).to(device).float()
+                y = torch.from_numpy(y_val[i2:i2 + int(batch_size)]).to(device).float()
+
+                outputs = model(x)
+                probabilities = torch.sigmoid(outputs)
+
+                y_scores.extend(probabilities.cpu().numpy())
+                y_true.extend(y.cpu().numpy())
+
+            auc = roc_auc_score(y_true, y_scores)
+            print(f'Run {1}: Learning Rate: {learning_rate}, Batch Size: {batch_size}, Num Epochs: {int(num_epochs)}, Hidden Size 1: {int(hidden_size1)}, Hidden Size 2: {int(hidden_size2)}')
+            print(f'AUC on the validation set: {auc}')
+            auc_values.append(auc)
+
+        return -auc  # We're using PSO to maximize AUC, so we minimize its negative value
+
+    # PSO optimization
+    start_time = time.time()
+    best_params, _ = pso(objective, lower_bounds, upper_bounds, swarmsize=num_particles, maxiter=50)
+    elapsed_time = time.time() - start_time
+
+
+
+    # Print elapsed time
+    print(f"Elapsed Time: {elapsed_time} seconds")
+
+    # After finding the best_params, use them to train the model on the full training set
+    # Evaluate the model on the test set and report the final AUC
+    with torch.no_grad():
+        y_scores = []
+        y_true = []
+        for run in range(10):
+            for i2 in range(0, len(X_test) - 1, int(best_params[1])):
+                x = torch.from_numpy(X_test[i2:i2 + int(best_params[1]), :]).to(device).float()
+                y = torch.from_numpy(y_test[i2:i2 + int(best_params[1])]).to(device).float()
+                model = NeuralNet(input_size, int(best_params[3]), int(best_params[4])).to(device)
+                outputs = model(x)
+                probabilities = torch.sigmoid(outputs)
+                y_scores.extend(probabilities.cpu().numpy())
+                y_true.extend(y.cpu().numpy())
+
+            auc = roc_auc_score(y_true, y_scores)
+            print(f'Final AUC on the test set: {auc}')
+            auc_values.append(auc)
+
+# Calculate and print the average AUC over 10 runs
+average_auc = np.mean(auc_values)
+print(f'Average AUC over 10 runs: {average_auc}')
